@@ -36,7 +36,7 @@ def handle_client(conn: socket.socket, addr):
         # Authentication phase
         auth_data = conn.recv(1024).decode().strip()
         username = auth_data
-n        if username not in authorized_users:
+        if username not in authorized_users:
             conn.sendall(b"AUTH_FAIL")
             logging.info(f"Authentication failed for {addr} username={username}")
             return
