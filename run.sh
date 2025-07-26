@@ -1,7 +1,7 @@
 echo alice > users.txt
 echo bob >> users.txt
 
-python server.py
+python3 server.py
 
-python client.py alice
-python client.py bob
+python3 client.py alice
+python3 client.py bob
