@@ -4,17 +4,17 @@ import threading
 import json
 import logging
 from typing import Dict, Any
+import os
 
 # Configuration
 HOST = '127.0.0.1'  # Static IP for server
 PORT = 65432        # Static port for server
 USER_FILE = 'users.txt'
+DATA_FILE = 'data.json'
 
-# Initialize logger
 target = logging.StreamHandler()
 logging.basicConfig(level=logging.INFO, handlers=[target], format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Load authorized users
 def load_users(filename: str) -> set:
     try:
         with open(filename, 'r') as f:
@@ -25,8 +25,19 @@ def load_users(filename: str) -> set:
 
 authorized_users = load_users(USER_FILE)
 
-# Shared entity storage and lock for thread-safety
-entities: Dict[str, Any] = {}
+def load_entities(filename: str) -> Dict[str, Any]:
+    try:
+        with open(filename, 'r') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        logging.warning("Entity file not found or corrupted, starting fresh.")
+        return {}
+
+def save_entities(filename: str, data: Dict[str, Any]):
+    with open(filename, 'w') as f:
+        json.dump(data, f)
+
+entities: Dict[str, Any] = load_entities(DATA_FILE)
 entities_lock = threading.Lock()
 
 # Handle a single client connection
@@ -43,7 +54,7 @@ def handle_client(conn: socket.socket, addr):
         conn.sendall(b"AUTH_OK")
         logging.info(f"User authenticated: {username} from {addr}")
 
-        # Command loop
+        
         while True:
             data = conn.recv(4096)
             if not data:
@@ -61,6 +72,7 @@ def handle_client(conn: socket.socket, addr):
             with entities_lock:
                 if action == 'CREATE':
                     entities[key] = value
+                    save_entities(DATA_FILE, entities)
                     response = {'status': 'OK', 'message': f"Created {key}"}
                 elif action == 'READ':
                     if key in entities:
@@ -70,12 +82,14 @@ def handle_client(conn: socket.socket, addr):
                 elif action == 'UPDATE':
                     if key in entities:
                         entities[key] = value
+                        save_entities(DATA_FILE, entities)
                         response = {'status': 'OK', 'message': f"Updated {key}"}
                     else:
                         response = {'status': 'ERROR', 'message': f"{key} not found"}
                 elif action == 'DELETE':
                     if key in entities:
                         del entities[key]
+                        save_entities(DATA_FILE, entities)
                         response = {'status': 'OK', 'message': f"Deleted {key}"}
                     else:
                         response = {'status': 'ERROR', 'message': f"{key} not found"}
@@ -101,4 +115,3 @@ def start_server():
 
 if __name__ == '__main__':
     start_server()
-
